@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <link rel="manifest" href="manifest.webmanifest">
+  <script src="config.js"></script>
 <meta name="theme-color" content="#0b0f14">
 
 <!-- iOS goodies -->
@@ -106,14 +107,18 @@ kbd{background:#1d2330;border:1px solid #2a3140;border-bottom-width:2px;padding:
 
 <script>
 // ===== Config storage =====
-// ---- Defaults (first-run only) ----
-const DEFAULTS = {
-  url: 'https://YOURPROJECT.supabase.co',
-  key: 'YOUR_PUBLIC_ANON_KEY'
-};
-// Seed localStorage only if empty
-if (!localStorage.getItem('https://drsdjwhtvykuosggsxrl.supabase.co')) localStorage.setItem('https://drsdjwhtvykuosggsxrl.supabase.co', DEFAULTS.url);
-if (!localStorage.getItem('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyc2Rqd2h0dnlrdW9zZ2dzeHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxNzI1NzcsImV4cCI6MjA3MTc0ODU3N30.x6pSdNJHaJaL7FL6fox_9fq1RU3G6D87gqzh7oSYGzI')) localStorage.setItem('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyc2Rqd2h0dnlrdW9zZ2dzeHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxNzI1NzcsImV4cCI6MjA3MTc0ODU3N30.x6pSdNJHaJaL7FL6fox_9fq1RU3G6D87gqzh7oSYGzI', DEFAULTS.key);
+// Read defaults from config.js (window.__KELSEA_CONFIG__)
+const cfg = window.__KELSEA_CONFIG__ || {};
+
+// Seed once (only if empty) so first-run “just works”
+if (!localStorage.getItem('sb_url') && cfg.supabaseUrl) {
+  localStorage.setItem('sb_url', cfg.supabaseUrl);
+}
+if (!localStorage.getItem('sb_key') && cfg.supabaseAnonKey) {
+  localStorage.setItem('sb_key', cfg.supabaseAnonKey);
+}
+
+// Simple getter/setter wrapper used elsewhere in your code
 const store = {
   get url(){ return localStorage.getItem('sb_url') || ''; },
   set url(v){ localStorage.setItem('sb_url', v); },
