@@ -1,7 +1,8 @@
 // sw.js
-const CACHE = 'kelsea-v2';   // bump this whenever you change the SW
+// Bump this each time you ship so users get the new version immediately.
+const CACHE = 'kelsea-v5';
 
-const PRECACHE = [
+const ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
@@ -11,8 +12,8 @@ const PRECACHE = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE)));
-  self.skipWaiting();
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+  self.skipWaiting(); // activate new SW immediately
 });
 
 self.addEventListener('activate', (e) => {
@@ -21,35 +22,25 @@ self.addEventListener('activate', (e) => {
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
     )
   );
-  self.clients.claim();
+  self.clients.claim(); // take control of open pages
 });
 
+// Cache same-origin GET requests only; let Supabase/network requests pass through.
 self.addEventListener('fetch', (e) => {
-  const url = new URL(e.request.url);
+  const req = e.request;
+  if (req.method !== 'GET') return;
 
-  // Don't intercept Supabase or other cross-origin requests
-  if (!url.origin.includes(self.location.origin) || url.hostname.includes('supabase.co')) {
-    return;
-  }
+  const url = new URL(req.url);
+  if (url.origin !== location.origin) return; // ignore cross-origin (e.g., supabase)
 
-  // HTML: network-first, fallback to cached index for offline
-  if (e.request.mode === 'navigate') {
-    e.respondWith(
-      fetch(e.request)
-        .then(r => { caches.open(CACHE).then(c => c.put(e.request, r.clone())); return r; })
-        .catch(() => caches.match('./index.html'))
-    );
-    return;
-  }
-
-  // Static assets: cache-first
+  // Try cache first, fall back to network, then cache the response for next time.
   e.respondWith(
-    caches.match(e.request).then(hit => hit ||
-      fetch(e.request).then(r => {
-        const copy = r.clone();
-        caches.open(CACHE).then(c => c.put(e.request, copy));
-        return r;
-      })
+    caches.match(req).then(cached =>
+      cached || fetch(req).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(req, copy));
+        return res;
+      }).catch(() => caches.match('./index.html'))
     )
   );
 });
