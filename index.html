@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b0f14">
+
+<!-- iOS goodies -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Kelsea — Lite App</title>
+<style>
+:root{--bg:#0f1115;--card:#171a21;--fg:#f4f6f8;--muted:#a8b0bd;--line:#242a36;--accent:#4da3ff;--ok:#21c07a;--warn:#ffb020;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+header{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:18px}
+nav{margin-left:auto;display:flex;gap:6px}
+button{cursor:pointer}
+.tabbtn{background:#212632;border:1px solid #2a3140;color:var(--fg);padding:8px 10px;border-radius:9px}
+.tabbtn.active{background:var(--accent);border-color:var(--accent);color:#061425}
+main{padding:12px}
+.tab{display:none}
+.tab.active{display:block}
+.list{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+.card h3{margin:0 0 6px 0;font-size:16px}
+.meta{color:var(--muted);font-size:12px;margin-bottom:8px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{background:#212632;border:1px solid #2a3140;color:var(--fg);padding:8px 10px;border-radius:9px;font-size:13px}
+.btn.ok{background:var(--ok);color:#06251a;border-color:#21c07a}
+.btn.warn{background:var(--warn);color:#241a06;border-color:#ffb020}
+.input{width:100%;padding:8px;border-radius:9px;border:1px solid #2a3140;background:#0e1117;color:var(--fg);margin:6px 0}
+small.mono{font-family:ui-monospace,Menlo,Consolas,monospace;color:#94a0b2}
+footer{padding:10px 12px;border-top:1px solid var(--line);color:var(--muted)}
+
+/* settings modal */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+.modal .box{width:min(640px,100%);background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.modal.show{display:flex}
+.label{font-size:12px;color:var(--muted);margin-top:6px}
+.hr{height:1px;background:var(--line);margin:10px 0}
+kbd{background:#1d2330;border:1px solid #2a3140;border-bottom-width:2px;padding:0 6px;border-radius:6px;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🪟 Kelsea</h1>
+  <nav>
+    <button class="tabbtn active" data-tab="signals">Signals</button>
+    <button class="tabbtn" data-tab="approve">Approve</button>
+    <button class="tabbtn" data-tab="outreach">Outreach</button>
+    <button class="tabbtn" data-tab="deals">Deals</button>
+    <button class="tabbtn" id="open-settings">Settings</button>
+  </nav>
+</header>
+
+<main>
+  <section id="signals" class="tab active">
+    <h2>Signals (Prospects)</h2>
+    <div class="list" id="signals-list"></div>
+  </section>
+
+  <section id="approve" class="tab">
+    <h2>Approval Queue</h2>
+    <div class="list" id="approve-list"></div>
+  </section>
+
+  <section id="outreach" class="tab">
+    <h2>Outreach History</h2>
+    <div class="list" id="outreach-list"></div>
+  </section>
+
+  <section id="deals" class="tab">
+    <h2>Deals (read-only for now)</h2>
+    <div class="list" id="deals-list"></div>
+  </section>
+</main>
+
+<footer>
+  <small>Local MVP • Uses Supabase REST • RLS off (for now). Press <kbd>Settings</kbd> to enter keys.</small>
+</footer>
+
+<!-- Settings Modal -->
+<div class="modal" id="settings-modal">
+  <div class="box">
+    <h3>Settings</h3>
+    <div class="label">Supabase Project URL</div>
+    <input class="input" id="sb-url" placeholder="https://xxxxxx.supabase.co"/>
+    <div class="label">Supabase anon key</div>
+    <textarea class="input" id="sb-key" rows="3" placeholder="paste anon key"></textarea>
+    <div class="row">
+      <button class="btn ok" id="save-settings">Save</button>
+      <button class="btn" id="test-settings">Test</button>
+      <button class="btn warn" id="close-settings">Close</button>
+    </div>
+    <div class="hr"></div>
+    <div class="row">
+      <button class="btn" id="seed-prospect">Add Test Prospect</button>
+      <small class="mono">Use for UI smoke tests.</small>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== Config storage =====
+// ---- Defaults (first-run only) ----
+const DEFAULTS = {
+  url: 'https://YOURPROJECT.supabase.co',
+  key: 'YOUR_PUBLIC_ANON_KEY'
+};
+// Seed localStorage only if empty
+if (!localStorage.getItem('https://drsdjwhtvykuosggsxrl.supabase.co')) localStorage.setItem('https://drsdjwhtvykuosggsxrl.supabase.co', DEFAULTS.url);
+if (!localStorage.getItem('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyc2Rqd2h0dnlrdW9zZ2dzeHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxNzI1NzcsImV4cCI6MjA3MTc0ODU3N30.x6pSdNJHaJaL7FL6fox_9fq1RU3G6D87gqzh7oSYGzI')) localStorage.setItem('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyc2Rqd2h0dnlrdW9zZ2dzeHJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxNzI1NzcsImV4cCI6MjA3MTc0ODU3N30.x6pSdNJHaJaL7FL6fox_9fq1RU3G6D87gqzh7oSYGzI', DEFAULTS.key);
+const store = {
+  get url(){ return localStorage.getItem('sb_url') || ''; },
+  set url(v){ localStorage.setItem('sb_url', v); },
+  get key(){ return localStorage.getItem('sb_key') || ''; },
+  set key(v){ localStorage.setItem('sb_key', v); }
+};
+
+// ===== REST helper =====
+// ...
+async function api(path, { method='GET', body=null, params='', prefer='return=representation' } = {}){
+  const url = store.url?.trim();
+  const key = store.key?.trim();
+  if(!url || !key) throw new Error('Missing Supabase URL or anon key. Open Settings.');
+  const endpoint = `${url}/rest/v1/${path}${params ? '?' + params : ''}`;
+  const res = await fetch(endpoint,{
+    method,
+    headers:{
+      apikey:key,
+      Authorization:`Bearer ${key}`,
+      'Content-Type':'application/json',
+      Prefer: prefer
+    },
+    body: body ? JSON.stringify(body) : null
+  });
+  if(!res.ok){
+    const t = await res.text();
+    throw new Error(`${method} ${path} -> ${res.status}: ${t}`);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+// ===== Tabs =====
+document.querySelectorAll('.tabbtn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    if(b.id==='open-settings'){ openSettings(); return; }
+    document.querySelectorAll('.tabbtn').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById(b.dataset.tab).classList.add('active');
+  });
+});
+
+// ===== Settings modal =====
+const modal = document.getElementById('settings-modal');
+function openSettings(){
+  document.getElementById('sb-url').value = store.url;
+  document.getElementById('sb-key').value = store.key;
+  modal.classList.add('show');
+}
+document.getElementById('close-settings').onclick = ()=> modal.classList.remove('show');
+document.getElementById('save-settings').onclick = ()=>{
+  store.url = document.getElementById('sb-url').value.trim();
+  store.key = document.getElementById('sb-key').value.trim();
+  alert('Saved.');
+};
+document.getElementById('seed-prospect').onclick = async ()=>{
+  try {
+    // Upsert on email so the button is safe to press multiple times
+    const rows = await api('prospects', {
+      method: 'POST',
+      params: 'on_conflict=email',
+      prefer: 'return=representation,resolution=merge-duplicates',
+      body: {
+        name: 'Test Homeowner',
+        platform: 'reddit',
+        location: 'Midland, TX',
+        email: 'test@example.com'
+      }
+    });
+    const prospectId = rows[0].id;
+
+    // Ensure there’s a fresh draft to show in Approve
+    await api('outreach_attempts', {
+      method: 'POST',
+      body: {
+        prospect_id: prospectId,
+        channel: 'email',
+        draft: 'Hi {{first_name}} — I’m Kelsea with The Window Source of West Texas. Saw your note about {{problem}}. Want a free estimate or quick advice?'
+      }
+    });
+
+    alert('Seeded one prospect + draft.');
+    await refreshAll();
+  } catch (e) {
+    alert(e.message);
+  }
+};
+
+// ===== Screens =====
+async function loadSignals(){
+  const data = await api('prospects',{params:'select=*&order=created_at.desc&limit=50'});
+  const box = document.getElementById('signals-list'); box.innerHTML='';
+  data.forEach(p=>{
+    const el=document.createElement('div'); el.className='card';
+    el.innerHTML = `
+      <h3>${p.name || p.handle || 'Unknown'}</h3>
+      <div class="meta">${p.platform || 'n/a'} • ${p.location || ''} • <small class="mono">${p.id}</small></div>
+      <textarea class="input" rows="3" placeholder="Draft message…">Hi ${p.name || ''} — I’m Kelsea with The Window Source of West Texas. Saw your note about {{problem}}. Want a free estimate or quick advice?</textarea>
+      <div class="row">
+        <button class="btn" data-a="draft-sms">Save Draft (SMS)</button>
+        <button class="btn" data-a="draft-email">Save Draft (Email)</button>
+      </div>`;
+    const ta = el.querySelector('textarea');
+    el.querySelector('[data-a="draft-sms"]').onclick = ()=> saveDraft(p.id,'sms',ta.value);
+    el.querySelector('[data-a="draft-email"]').onclick = ()=> saveDraft(p.id,'email',ta.value);
+    box.appendChild(el);
+  });
+}
+
+async function loadApprove(){
+  const data = await api('approval_queue_v',{params:'select=*&order=discovered_at.desc&limit=50'});
+  const box = document.getElementById('approve-list'); box.innerHTML='';
+  data.forEach(row=>{
+    const el=document.createElement('div'); el.className='card';
+    el.innerHTML = `
+      <h3>${row.name || 'Unknown'} — ${row.channel?.toUpperCase() || '?'}</h3>
+      <div class="meta">Discovered: ${new Date(row.discovered_at).toLocaleString()}</div>
+      <div class="input" style="white-space:pre-wrap">${row.draft || '(no draft)'}</div>
+      <div class="row">
+        <button class="btn ok" data-a="approve">Approve</button>
+        <button class="btn warn" data-a="sent">Mark Sent</button>
+      </div>`;
+    el.querySelector('[data-a="approve"]').onclick = ()=> approveAttempt(row.attempt_id);
+    el.querySelector('[data-a="sent"]').onclick    = ()=> markSent(row.attempt_id);
+    box.appendChild(el);
+  });
+}
+
+async function loadOutreach(){
+  const data = await api('outreach_attempts',{params:'select=*&order=updated_at.desc&limit=50'});
+  const box = document.getElementById('outreach-list'); box.innerHTML='';
+  data.forEach(a=>{
+    const el=document.createElement('div'); el.className='card';
+    el.innerHTML = `
+      <h3>${a.channel.toUpperCase()} — ${a.delivery_status || 'draft/sent?'}</h3>
+      <div class="meta">Approved: ${a.approved_at ? new Date(a.approved_at).toLocaleString() : '—'} • Sent: ${a.sent_at ? new Date(a.sent_at).toLocaleString() : '—'}</div>
+      <div class="input" style="white-space:pre-wrap">${a.draft || ''}</div>
+      <small class="mono">prospect: ${a.prospect_id}</small>`;
+    box.appendChild(el);
+  });
+}
+
+async function loadDeals(){
+  try{
+    const data = await api('deals',{params:'select=*&order=updated_at.desc&limit=50'});
+    const box = document.getElementById('deals-list'); box.innerHTML='';
+    data.forEach(d=>{
+      const el=document.createElement('div'); el.className='card';
+      el.innerHTML = `<h3>${d.stage.toUpperCase()} — $${d.revenue || d.estimated_value || 0}</h3>
+        <div class="meta">Appt: ${d.appointment_at || '—'} • Close: ${d.close_date || '—'}</div>`;
+      box.appendChild(el);
+    });
+  }catch{ document.getElementById('deals-list').innerHTML = '<div class="card">No deals yet.</div>'; }
+}
+
+// ===== Actions =====
+async function saveDraft(prospect_id, channel, draft){
+  await api('outreach_attempts',{method:'POST', body:{prospect_id, channel, draft}});
+  alert('Draft saved.');
+  await loadApprove();
+}
+async function approveAttempt(attempt_id){
+  const now = new Date().toISOString();
+  await api('outreach_attempts',{method:'PATCH', params:`id=eq.${attempt_id}`, body:{approved_by:'Kelsea', approved_at:now}});
+  alert('Approved.');
+  await loadApprove(); await loadOutreach();
+}
+async function markSent(attempt_id){
+  const now = new Date().toISOString();
+  await api('outreach_attempts',{method:'PATCH', params:`id=eq.${attempt_id}`, body:{sent_at:now, delivery_status:'manual'}});
+  alert('Marked sent.');
+  await loadApprove(); await loadOutreach();
+}
+
+// ===== Init =====
+async function refreshAll(){
+  await loadSignals(); await loadApprove(); await loadOutreach(); await loadDeals();
+}
+window.addEventListener('load',()=>{
+  // first-run: prompt for settings
+  if(!store.url || !store.key) openSettings();
+  refreshAll().catch(e=>console.log(e.message));
+});
+</script>
+<script>
+  // Register the service worker after the page finishes loading
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker
+        .register('./sw.js', { scope: './' })
+        .then(r => console.log('SW registered:', r.scope))
+        .catch(err => console.log('SW failed:', err));
+    });
+  }
+</script>
+</body>
+</html>
