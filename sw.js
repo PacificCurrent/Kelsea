@@ -1,11 +1,12 @@
 // sw.js
 // Bump this each time you ship so users get the new version immediately.
-const CACHE = 'kelsea-v5';
+const CACHE = 'kelsea-v7';
 
 const ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './config.js',                 // ← new
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png'
@@ -33,7 +34,6 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== location.origin) return; // ignore cross-origin (e.g., supabase)
 
-  // Try cache first, fall back to network, then cache the response for next time.
   e.respondWith(
     caches.match(req).then(cached =>
       cached || fetch(req).then(res => {
